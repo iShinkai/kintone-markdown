@@ -3,33 +3,30 @@ import App from './App.vue'
 
 Vue.config.productionTip = false
 
+// mavonEditor を使用
 import mavonEditor from 'mavon-editor'
 import 'mavon-editor/dist/css/index.css'
-
 Vue.use(mavonEditor)
-
-new Vue({
-  render: h => h(App)
-}).$mount('#app')
 
 /**
  * アプリの設定
  */
-const appSettings = {
-  appId: 81, // 対象のアプリID
-  srcFieldCode: '本文', // Markdown テキストを入力するフィールドのフィールドコード
-  dstFieldCode: '本文_リッチエディター', // レンダリングされたテキストを表示するフィールドのフィールドコード
-  attachmentFieldCode: '添付ファイル', // 添付ファイルを格納するフィールドのフィールドコード
-  spaceField: 'kintone-markdown' // エディタを差し込むスペース要素
-}
+import { appSettings } from './appSettings'
 
 /**
  * マウント処理
  */
-const mount = (elem: HTMLElement, settings: any) => {
+const mount = (
+  elem: HTMLElement,
+  record: unknown,
+  isEdit: boolean,
+  settings: object
+) => {
   const vm = new Vue({
-    render: h => h(App),
-    props: { ...settings }
+    render: h =>
+      h(App, {
+        props: { record, isEdit, ...settings }
+      })
   })
   vm.$mount(elem)
 
@@ -40,19 +37,26 @@ const mount = (elem: HTMLElement, settings: any) => {
  * レコード作成・編集時イベント処理
  */
 kintone.events.on(
-  ['app.record.create.show', 'app.record.edit.show'],
+  ['app.record.create.show', 'app.record.edit.show', 'app.record.detail.show'],
   (event: typeof kintoneEvent) => {
-    console.log(event)
-    console.log(appSettings)
+    // 編集中フラグ
+    const isEdit = !event.type.endsWith('detail.show')
 
-    mount(
-      kintone.app.record.getSpaceElement(appSettings.spaceField),
-      appSettings
-    )
+    // 要素にスタイルをつける（エディタのサイズをスペース要素のサイズいっぱいに拡げる）
+    const elem = kintone.app.record.getSpaceElement(
+      appSettings.spaceField
+    ) as HTMLElement
+    if (elem.parentElement) {
+      elem.parentElement.style.display = 'flex'
+      elem.parentElement.style.height = elem.parentElement.style.minHeight
+    }
+
+    // マウント
+    mount(elem, event.record, isEdit, appSettings)
+
+    // 素の入力フィールドは非表示
+    kintone.app.record.setFieldShown(appSettings.srcFieldCode, false)
+
+    return event
   }
 )
-
-kintone.events.on('app.record.index.show', (event: typeof kintoneEvent) => {
-  console.log('💓')
-  console.log(event)
-})
